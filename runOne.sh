@@ -55,9 +55,14 @@ echo $B Started $PING_CONTAINER_NAME $B
 
 $PAUSE_CMD
 
+# Grab container's network namespace and put it somewhere useful
+PING_CONTAINER_PID=`docker inspect -f '{{.State.Pid}}' $PING_CONTAINER_NAME`
+mkdir -p /var/run/netns
+ln -sf /proc/$PING_CONTAINER_PID/ns/net /var/run/netns/$PING_CONTAINER_NAME
 #
 # Need a consistent way to get the distinct device index
 # associated with devices across netns.
+# maybe ip netns $CONTAINER_NAME ip a | <filtering>
 #
 OUTER_DEV_INDEX=
 INNER_DEV_INDEX=
