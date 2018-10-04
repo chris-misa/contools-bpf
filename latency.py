@@ -1,5 +1,12 @@
 from bcc import BPF
 import ctypes as ct
+import sys
+
+USAGE="latency.py <outer device index> <inner device index>"
+
+if len(sys.argv) != 3:
+    print(USAGE)
+    sys.exit(1)
 
 prog='''
 #include <uapi/linux/ptrace.h>
@@ -66,11 +73,11 @@ int do_send(struct pt_regs *ctx, struct sk_buff *skb)
 }
 '''
 
-outer_dev_index = 3
-inner_dev_index = 5
+outer_dev_index = sys.argv[1]
+inner_dev_index = sys.argv[2]
 
-prog = prog.replace('OUTER_DEV_INDEX', str(outer_dev_index))
-prog = prog.replace('INNER_DEV_INDEX', str(inner_dev_index))
+prog = prog.replace('OUTER_DEV_INDEX', outer_dev_index)
+prog = prog.replace('INNER_DEV_INDEX', inner_dev_index)
 
 b = BPF(text=prog)
 
@@ -81,9 +88,22 @@ class Latency(ct.Structure):
     _fields_ = [("ts", ct.c_ulonglong),
                 ("ns", ct.c_ulonglong),
                 ("dir", ct.c_ulong)]
+
+
+in_flight = False
+send_lat = 0
 def print_event(cpu, data, size):
+    global in_flight, send_lat
     event = ct.cast(data, ct.POINTER(Latency)).contents
-    print("ts: %d, ns: %d, dir: %d" % (event.ts, event.ns, event.dir))
+    if in_flight:
+        print("[%d] rtt raw_latency: %d, events_overhead: %d, end" \
+                % (event.ts, float(event.ns + send_lat) / 1000, 0))
+        in_flight = False
+        send_lat = 0
+    else:
+        in_flight = True
+        send_lat = event.ns
+
 
 b["events"].open_perf_buffer(print_event)
 
