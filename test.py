@@ -1,51 +1,68 @@
 from bcc import BPF
 
 prog='''
-
+#include <uapi/linux/ptrace.h>
 #include <linux/skbuff.h>
 #include <linux/netdevice.h>
 
-TRACEPOINT_PROBE(net, netif_receive_skb) {
-  struct sk_buff *skb = NULL;
-  struct net_device *dev = NULL;
-  char dev_name[IFNAMSIZ] = {};
-  bpf_probe_read(skb, sizeof(struct sk_buff), args->skbaddr);
-  // bpf_probe_read(dev, sizeof(struct net_device), skb->dev);
-  // bpf_probe_read(dev_name, IFNAMSIZ, dev->name);
+BPF_HASH(start, u64);
 
-  // bpf_trace_printk("skb: %p, dev: %p, name: %s\\n", skb, dev, dev_name);
 
-  bpf_trace_printk("%p\\n", skb);
-  return 0;
-}
-
-'''
-
-#
-# Looks like we can only attach to symbols wrapped in EXPORT_SYMBOL(...)
-#
-prog2='''
-#include <linux/skbuff.h>
-#include <linux/netdevice.h>
-
-char outer_dev[] = "eno1d1";
-
-int kprobe__netif_rx(struct pt_regs *ctx, struct sk_buff *skb)
+int do_recv(struct pt_regs *ctx, struct sk_buff *skb)
 {
-    bpf_trace_printk("in netif_rx: name: %s \\n ", skb->dev->name);
-    bpf_trace_printk("ifindex: %d \\n ", skb->dev->ifindex);
+    int dev_index = skb->dev->ifindex;
+    u64 ts, *tsp, delta;
+
+    u64 recv_key = 2;
+
+    if (dev_index == OUTER_DEV_INDEX) {
+        ts = bpf_ktime_get_ns();
+        start.update(&recv_key, &ts);
+    } else if (dev_index == INNER_DEV_INDEX) {
+        tsp = start.lookup(&recv_key);
+        if (tsp != 0) {
+            delta = bpf_ktime_get_ns() - *tsp;
+            bpf_trace_printk("recv latency: %llu \\n ", delta);
+        }
+        start.delete(&recv_key);
+    }
     return 0;
 }
 
-int kprobe__dev_queue_xmit(struct pt_regs *ctx, struct sk_buff *skb)
+
+int do_send(struct pt_regs *ctx, struct sk_buff *skb)
 {
-    bpf_trace_printk("in dev_queue_xmit: name: %s \\n ", skb->dev->name);
-    bpf_trace_printk("ifindex: %d \\n ", skb->dev->ifindex);
+    int dev_index = skb->dev->ifindex;
+    u64 ts, *tsp, delta;
+
+    u64 send_key = 1;
+
+    if (dev_index == INNER_DEV_INDEX) {
+        ts = bpf_ktime_get_ns();
+        start.update(&send_key, &ts);
+    } else if (dev_index == OUTER_DEV_INDEX) {
+        tsp = start.lookup(&send_key);
+        if (tsp != 0) {
+            delta = bpf_ktime_get_ns() - *tsp;
+            bpf_trace_printk("send latency: %llu \\n ", delta);
+        }
+        start.delete(&send_key);
+    }
     return 0;
 }
-
 '''
 
-b = BPF(text=prog2)
+outer_dev_index = 3
+inner_dev_index = 5
+
+prog = prog.replace('OUTER_DEV_INDEX', str(outer_dev_index))
+prog = prog.replace('INNER_DEV_INDEX', str(inner_dev_index))
+
+b = BPF(text=prog)
+
+b.attach_kprobe(event="__netif_receive_skb_core", fn_name="do_recv")
+b.attach_kprobe(event="dev_queue_xmit", fn_name="do_send")
+print("Watching for latencies")
+
 
 b.trace_print()
