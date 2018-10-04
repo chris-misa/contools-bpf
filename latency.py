@@ -1,6 +1,9 @@
+#!/usr/bin/python
+
 from bcc import BPF
 import ctypes as ct
 import sys
+import signal
 
 USAGE="latency.py <outer device index> <inner device index>"
 
@@ -96,7 +99,7 @@ def print_event(cpu, data, size):
     global in_flight, send_lat
     event = ct.cast(data, ct.POINTER(Latency)).contents
     if in_flight:
-        print("[%d] rtt raw_latency: %d, events_overhead: %d, end" \
+        sys.stdout.write("[%d] rtt raw_latency: %d, events_overhead: %d, end\n" \
                 % (event.ts, float(event.ns + send_lat) / 1000, 0))
         in_flight = False
         send_lat = 0
@@ -104,10 +107,21 @@ def print_event(cpu, data, size):
         in_flight = True
         send_lat = event.ns
 
+def do_exit(signum, frame):
+    sys.stdout.flush()
+    sys.exit(0)
 
-b["events"].open_perf_buffer(print_event)
+def main():
+    b["events"].open_perf_buffer(print_event)
 
-print("Watching for latencies")
+    sys.stdout.write("Watching for latencies\n")
 
-while 1:
-    b.perf_buffer_poll()
+    while 1:
+        b.perf_buffer_poll()
+
+if __name__ == '__main__':
+    signal.signal(signal.SIGINT, do_exit)
+    main()
+
+
+
