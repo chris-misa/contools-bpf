@@ -28,11 +28,22 @@ prog2='''
 #include <linux/skbuff.h>
 #include <linux/netdevice.h>
 
-int kprobe__dev_queue_xmit(struct pt_regs *ctx)
+char outer_dev[] = "eno1d1";
+
+int kprobe__netif_rx(struct pt_regs *ctx, struct sk_buff *skb)
 {
-    bpf_trace_printk("foo\\n");
+    bpf_trace_printk("in netif_rx: name: %s \\n ", skb->dev->name);
+    bpf_trace_printk("ifindex: %d \\n ", skb->dev->ifindex);
     return 0;
 }
+
+int kprobe__dev_queue_xmit(struct pt_regs *ctx, struct sk_buff *skb)
+{
+    bpf_trace_printk("in dev_queue_xmit: name: %s \\n ", skb->dev->name);
+    bpf_trace_printk("ifindex: %d \\n ", skb->dev->ifindex);
+    return 0;
+}
+
 '''
 
 b = BPF(text=prog2)
