@@ -100,7 +100,7 @@ def print_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Latency)).contents
     if in_flight:
         sys.stdout.write("[%d] rtt raw_latency: %d, events_overhead: %d, end\n" \
-                % (event.ts, float(event.ns + send_lat) / 1000, 0))
+                % (event.ts, float(event.ns + send_lat) / 1000.0, 0))
         in_flight = False
         send_lat = 0
     else:

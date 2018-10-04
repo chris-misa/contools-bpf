@@ -16,48 +16,6 @@ do
     IPERF_PID=$!
   fi
 
-  #
-  # Container pings with monitoring
-  #
-  echo $B Container / native monitored $B
-  
-  $MONITOR_CMD > container_monitored_${TARGET_IPV4}_${arg}.latency &
-  MONITOR_PID=$!
-  echo "  monitor running with pid: ${MONITOR_PID}"
-  
-  $PAUSE_CMD
-  
-  docker exec $PING_CONTAINER_NAME \
-    $CONTAINER_PING_CMD $PING_ARGS $TARGET_IPV4 \
-    > container_monitored_${TARGET_IPV4}_${arg}.ping &
-  echo "  container pinging. . ."
-
-  $PAUSE_CMD
-  
-  PING_PID=`ps -e | grep ping | sed -E 's/ *([0-9]+) .*/\1/'`
-  echo "  got container ping pid $PING_PID"
-
-
-  # Run ping in background
-  $NATIVE_PING_CMD $PING_ARGS $TARGET_IPV4 \
-    > native_monitored_${TARGET_IPV4}_${arg}.ping &
-  NAT_PING_PID=$!
-  echo "  native pinging. . . (pid $NAT_PING_PID)"
-  
-  
-  $PING_PAUSE_CMD
-  
-  kill -INT $PING_PID
-  kill -INT $NAT_PING_PID
-  echo "  killed pings"
-  
-  $PAUSE_CMD
-  
-  kill $MONITOR_PID
-  echo "  killed monitor"
-  
-  $PAUSE_CMD
-
 
 
   #
@@ -104,6 +62,48 @@ do
   kill -INT $PING_PID
   echo "  killed ping"
 
+  $PAUSE_CMD
+
+  #
+  # Container pings with monitoring
+  #
+  echo $B Container / native monitored $B
+  
+  $MONITOR_CMD > container_monitored_${TARGET_IPV4}_${arg}.latency &
+  MONITOR_PID=$!
+  echo "  monitor running with pid: ${MONITOR_PID}"
+  
+  $PAUSE_CMD
+  
+  docker exec $PING_CONTAINER_NAME \
+    $CONTAINER_PING_CMD $PING_ARGS $TARGET_IPV4 \
+    > container_monitored_${TARGET_IPV4}_${arg}.ping &
+  echo "  container pinging. . ."
+
+  $PAUSE_CMD
+  
+  PING_PID=`ps -e | grep ping | sed -E 's/ *([0-9]+) .*/\1/'`
+  echo "  got container ping pid $PING_PID"
+
+
+  # Run ping in background
+  $NATIVE_PING_CMD $PING_ARGS $TARGET_IPV4 \
+    > native_monitored_${TARGET_IPV4}_${arg}.ping &
+  NAT_PING_PID=$!
+  echo "  native pinging. . . (pid $NAT_PING_PID)"
+  
+  
+  $PING_PAUSE_CMD
+  
+  kill -INT $PING_PID
+  kill -INT $NAT_PING_PID
+  echo "  killed pings"
+  
+  $PAUSE_CMD
+  
+  kill -INT $MONITOR_PID
+  echo "  killed monitor"
+  
   $PAUSE_CMD
 
 
