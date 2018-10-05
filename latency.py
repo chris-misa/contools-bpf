@@ -24,7 +24,7 @@ struct latency_t {
 BPF_PERF_OUTPUT(events);
 
 BPF_HASH(start, u64);
-BPF_HASH(on_wire, u32);
+BPF_HASH(on_wire, u64);
 
 
 int do_recv(struct pt_regs *ctx, struct sk_buff *skb)
@@ -47,8 +47,8 @@ int do_recv(struct pt_regs *ctx, struct sk_buff *skb)
                 lat.ns = lat.ts - *tsp;
                 lat.dir = recv_key;
                 events.perf_submit(ctx, &lat, sizeof(lat));
+                start.delete(&recv_key);
             }
-            start.delete(&recv_key);
             on_wire.delete(&send_key);
         }
     }

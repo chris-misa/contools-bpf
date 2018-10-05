@@ -22,8 +22,8 @@ PING_CONTAINER_NAME="ping-container"
 
 PAUSE_CMD="sleep 5"
 
-# PING_PAUSE_CMD="sleep 500"
-PING_PAUSE_CMD="sleep 5"
+PING_PAUSE_CMD="sleep 500"
+# PING_PAUSE_CMD="sleep 5"
 
 DATE_TAG=`date +%Y%m%d%H%M%S`
 META_DATA="Metadata"
