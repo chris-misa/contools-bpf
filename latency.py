@@ -25,11 +25,13 @@ BPF_PERF_OUTPUT(events);
 
 BPF_HASH(start, u64);
 BPF_HASH(on_wire, u64);
+BPF_HASH(skbaddr, u64, struct sk_buff *);
 
 
 int do_recv(struct pt_regs *ctx, struct sk_buff *skb)
 {
     int dev_index = skb->dev->ifindex;
+    struct sk_buff **addrp;
     u64 ts, *tsp, delta;
     struct latency_t lat = {};
 
@@ -40,9 +42,11 @@ int do_recv(struct pt_regs *ctx, struct sk_buff *skb)
         if (dev_index == OUTER_DEV_INDEX) {
             ts = bpf_ktime_get_ns();
             start.update(&recv_key, &ts);
+            skbaddr.update(&recv_key, &skb);
         } else if (dev_index == INNER_DEV_INDEX) {
             tsp = start.lookup(&recv_key);
-            if (tsp != 0) {
+            addrp = skbaddr.lookup(&recv_key);
+            if (tsp != 0 && addrp != 0 && *addrp == skb) {
                 lat.ts = bpf_ktime_get_ns();
                 lat.ns = lat.ts - *tsp;
                 lat.dir = recv_key;
@@ -59,6 +63,7 @@ int do_recv(struct pt_regs *ctx, struct sk_buff *skb)
 int do_send(struct pt_regs *ctx, struct sk_buff *skb)
 {
     int dev_index = skb->dev->ifindex;
+    struct sk_buff **addrp;
     u64 ts, *tsp, delta;
     struct latency_t lat = {};
 
@@ -67,9 +72,11 @@ int do_send(struct pt_regs *ctx, struct sk_buff *skb)
     if (dev_index == INNER_DEV_INDEX) {
         ts = bpf_ktime_get_ns();
         start.update(&send_key, &ts);
+        skbaddr.update(&send_key, &skb);
     } else if (dev_index == OUTER_DEV_INDEX) {
         tsp = start.lookup(&send_key);
-        if (tsp != 0) {
+        addrp = skbaddr.lookup(&send_key);
+        if (tsp != 0 && addrp != 0 && *addrp == skb) {
             lat.ts = bpf_ktime_get_ns();
             lat.ns = lat.ts - *tsp;
             lat.dir = send_key;
