@@ -4,101 +4,33 @@ from bcc import BPF
 import ctypes as ct
 import sys
 import signal
+import time
 
-USAGE="latency.py <outer device index> <inner device index>"
+USAGE="latency.py <bpf program> <outer device index> <inner device index>"
 
-if len(sys.argv) != 3:
+if len(sys.argv) != 4:
     print(USAGE)
     sys.exit(1)
 
-prog='''
-#include <uapi/linux/ptrace.h>
-#include <linux/skbuff.h>
-#include <linux/netdevice.h>
+prog = None
 
-struct latency_t {
-    u64 ts;
-    u64 ns;
-    u32 dir; // 1: send, 2: recv
-};
-BPF_PERF_OUTPUT(events);
+with open(sys.argv[1], "r") as fp:
+    prog = fp.read();
 
-BPF_HASH(start, u64);
-BPF_HASH(on_wire, u64);
-BPF_HASH(skbaddr, u64, struct sk_buff *);
+if prog is None:
+    print("Failed to load program: " + sys.argv[1])
+    sys.exit(1)
 
-
-int do_recv(struct pt_regs *ctx, struct sk_buff *skb)
-{
-    int dev_index = skb->dev->ifindex;
-    struct sk_buff **addrp;
-    u64 ts, *tsp, delta;
-    struct latency_t lat = {};
-
-    u64 recv_key = 2;
-    u64 send_key = 1;
-
-    if (on_wire.lookup(&send_key) != 0) {
-        if (dev_index == OUTER_DEV_INDEX) {
-            ts = bpf_ktime_get_ns();
-            start.update(&recv_key, &ts);
-            skbaddr.update(&recv_key, &skb);
-        } else if (dev_index == INNER_DEV_INDEX) {
-            tsp = start.lookup(&recv_key);
-            addrp = skbaddr.lookup(&recv_key);
-            if (tsp != 0 && addrp != 0 && *addrp == skb) {
-                lat.ts = bpf_ktime_get_ns();
-                lat.ns = lat.ts - *tsp;
-                lat.dir = recv_key;
-                events.perf_submit(ctx, &lat, sizeof(lat));
-                start.delete(&recv_key);
-            }
-            on_wire.delete(&send_key);
-        }
-    }
-    return 0;
-}
-
-
-int do_send(struct pt_regs *ctx, struct sk_buff *skb)
-{
-    int dev_index = skb->dev->ifindex;
-    struct sk_buff **addrp;
-    u64 ts, *tsp, delta;
-    struct latency_t lat = {};
-
-    u64 send_key = 1;
-
-    if (dev_index == INNER_DEV_INDEX) {
-        ts = bpf_ktime_get_ns();
-        start.update(&send_key, &ts);
-        skbaddr.update(&send_key, &skb);
-    } else if (dev_index == OUTER_DEV_INDEX) {
-        tsp = start.lookup(&send_key);
-        addrp = skbaddr.lookup(&send_key);
-        if (tsp != 0 && addrp != 0 && *addrp == skb) {
-            lat.ts = bpf_ktime_get_ns();
-            lat.ns = lat.ts - *tsp;
-            lat.dir = send_key;
-            events.perf_submit(ctx, &lat, sizeof(lat));
-            on_wire.update(&send_key,&send_key);
-        }
-        start.delete(&send_key);
-    }
-    return 0;
-}
-'''
-
-outer_dev_index = sys.argv[1]
-inner_dev_index = sys.argv[2]
+outer_dev_index = sys.argv[2]
+inner_dev_index = sys.argv[3]
 
 prog = prog.replace('OUTER_DEV_INDEX', outer_dev_index)
 prog = prog.replace('INNER_DEV_INDEX', inner_dev_index)
 
 b = BPF(text=prog)
 
-b.attach_kprobe(event="__netif_receive_skb_core", fn_name="do_recv")
-b.attach_kprobe(event="dev_queue_xmit", fn_name="do_send")
+# b.attach_kprobe(event="__netif_receive_skb_core", fn_name="do_recv")
+# b.attach_kprobe(event="dev_queue_xmit", fn_name="do_send")
 
 class Latency(ct.Structure):
     _fields_ = [("ts", ct.c_ulonglong),
@@ -111,12 +43,12 @@ send_lat = 0
 def print_event(cpu, data, size):
     global in_flight, send_lat
     event = ct.cast(data, ct.POINTER(Latency)).contents
-    if in_flight:
-        sys.stdout.write("[%d] rtt raw_latency: %d, events_overhead: %d, end\n" \
-                % (event.ts, float(event.ns + send_lat) / 1000.0, 0))
+    if in_flight and event.dir == 2:
+        sys.stdout.write("[%f] rtt raw_latency: %d, events_overhead: %d, end\n" \
+                % (time.time(), float(event.ns + send_lat) / 1000.0, 0))
         in_flight = False
         send_lat = 0
-    else:
+    elif event.dir == 1:
         in_flight = True
         send_lat = event.ns
 
