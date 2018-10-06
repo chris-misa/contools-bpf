@@ -14,22 +14,13 @@ BPF_HASH(on_wire, u64);
 BPF_HASH(addr, u64, struct sk_buff *);
 BPF_HASH(prev_len, u64, unsigned int);
 
-static int str_comp(char *s1, char *s2, int len)
-{
-    int i;
-    for (i = 0; i < len; i++) {
-	    if (s1[i] != s2[i]) {
-		    return -1;
-	    }
-    }
-    return 0;
-}
 
 TRACEPOINT_PROBE(net, netif_receive_skb)
 {
-    char devname[16];
-
     struct sk_buff *skb = (struct sk_buff *)args->skbaddr;
+    struct net_device *dev = NULL;
+    int dev_index;
+
     struct sk_buff **addrp;
     u64 ts, *tsp, delta;
     struct latency_t lat = {};
@@ -40,14 +31,16 @@ TRACEPOINT_PROBE(net, netif_receive_skb)
     // Make sure we're expecting an echo reply
     if (on_wire.lookup(&send_key) != 0) {
 
-        TP_DATA_LOC_READ_CONST(&devname[0], name, sizeof(devname));
+	// Get the device index
+        bpf_probe_read(&dev, sizeof(skb->dev), ((char *)skb) + offsetof(typeof(*skb), dev));
+        bpf_probe_read(&dev_index, sizeof(int), ((char *)dev) + offsetof(typeof(*dev), ifindex));
 
-        if (!str_comp(devname, OUTER_DEV_NAME, 16)) {
+        if (dev_index == OUTER_DEV_INDEX) {
             ts = bpf_ktime_get_ns();
             start.update(&recv_key, &ts);
             addr.update(&recv_key, &skb);
 
-        } else if (!str_comp(devname, INNER_DEV_NAME, 16)) {
+        } else if (dev_index == INNER_DEV_INDEX) {
             addrp = addr.lookup(&recv_key);
             if (addrp != 0 && *addrp == skb) {
                 lat.ts = bpf_ktime_get_ns();
@@ -67,29 +60,35 @@ TRACEPOINT_PROBE(net, netif_receive_skb)
 
 TRACEPOINT_PROBE(net, net_dev_xmit)
 {
-    /* Copied from recent patch:
-     * https://lists.linuxfoundation.org/pipermail/iovisor-dev/2017-February/000628.html
-     *
-     * Better than using device index from skb as this seems to not always be correct.
-     * Also, this string is already copied when the tracepoint is hit so no extra
-     * copying is needed.
-     */
-    char devname[16];
-    TP_DATA_LOC_READ_CONST(&devname[0], name, sizeof(devname));
-
     struct sk_buff *skb = (struct sk_buff *)args->skbaddr;
+    struct net_device *dev = NULL;
+    int dev_index;
+
     struct sk_buff **addrp;
     u64 ts, *tsp, delta;
     struct latency_t lat = {};
 
     u64 send_key = 1;
 
-    if (!str_comp(devname, INNER_DEV_NAME, 16)) {
+    //char devname[16];
+    //TP_DATA_LOC_READ_CONST(&devname[0], name, sizeof(devname));
+
+    // Get the device index
+    bpf_probe_read(&dev, sizeof(skb->dev), ((char *)skb) + offsetof(typeof(*skb), dev));
+    bpf_probe_read(&dev_index, sizeof(int), ((char *)dev) + offsetof(typeof(*dev), ifindex));
+
+    /*
+    if (dev_index != 2) {
+        bpf_trace_printk("ts: %llu, dev: %s, id: %d\n", bpf_ktime_get_ns(), devname, dev_index);
+    }
+    */
+
+    if (dev_index == INNER_DEV_INDEX) {
         ts = bpf_ktime_get_ns();
         start.update(&send_key, &ts);
         addr.update(&send_key, &skb);
 
-    } else if (!str_comp(devname, OUTER_DEV_NAME, 16)) {
+    } else if (dev_index == OUTER_DEV_INDEX) {
 	addrp = addr.lookup(&send_key);
         if (addrp != 0 && *addrp == skb) {
             lat.ts = bpf_ktime_get_ns();

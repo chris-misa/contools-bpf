@@ -21,11 +21,8 @@ if prog is None:
     print("Failed to load program: " + sys.argv[1])
     sys.exit(1)
 
-outer_dev_index = sys.argv[2]
-inner_dev_index = sys.argv[3]
-
-prog = prog.replace('OUTER_DEV_INDEX', outer_dev_index)
-prog = prog.replace('INNER_DEV_INDEX', inner_dev_index)
+prog = prog.replace('OUTER_DEV_NAME', '"' + sys.argv[2] + '"')
+prog = prog.replace('INNER_DEV_NAME', '"' + sys.argv[3] + '"')
 
 b = BPF(text=prog)
 
