@@ -58,18 +58,18 @@ $PAUSE_CMD
 #
 # Code to get net dev indexes
 #
-INNER_DEV_NAME="eth0@" # Note that adding the '@' selects only the veth end
+INNER_DEV_NAME="eth0" # Note that adding the '@' selects only the veth end
 OUTER_DEV_NAME="eno1d1"
 
-# Grab container's network namespace and put it somewhere useful
-PING_CONTAINER_PID=`docker inspect -f '{{.State.Pid}}' $PING_CONTAINER_NAME`
-mkdir -p /var/run/netns
-ln -sf /proc/$PING_CONTAINER_PID/ns/net /var/run/netns/$PING_CONTAINER_NAME
-# Get the device indexes
-OUTER_DEV_INDEX=`ip l | grep ${OUTER_DEV_NAME} | cut -d ':' -f 1`
-INNER_DEV_INDEX=`ip netns exec $PING_CONTAINER_NAME ip l | grep ${INNER_DEV_NAME} | cut -d ':' -f 1`
-
-echo Got outer dev index: $OUTER_DEV_INDEX, inner dev index: $INNER_DEV_INDEX
+# # Grab container's network namespace and put it somewhere useful
+# PING_CONTAINER_PID=`docker inspect -f '{{.State.Pid}}' $PING_CONTAINER_NAME`
+# mkdir -p /var/run/netns
+# ln -sf /proc/$PING_CONTAINER_PID/ns/net /var/run/netns/$PING_CONTAINER_NAME
+# # Get the device indexes
+# OUTER_DEV_INDEX=`ip l | grep ${OUTER_DEV_NAME} | cut -d ':' -f 1`
+# INNER_DEV_INDEX=`ip netns exec $PING_CONTAINER_NAME ip l | grep ${INNER_DEV_NAME} | cut -d ':' -f 1`
+# 
+# echo Got outer dev index: $OUTER_DEV_INDEX, inner dev index: $INNER_DEV_INDEX
 
 echo $B Running inner dev strategy $B
 
