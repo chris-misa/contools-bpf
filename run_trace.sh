@@ -3,7 +3,7 @@
 #
 # Test of inner dev plug in scheme
 #
-MONITOR_CMD="${OLD_PWD}/latency.py $OUTER_DEV_INDEX $INNER_DEV_INDEX"
+MONITOR_CMD="${OLD_PWD}/latency.py ${OLD_PWD}/inner_dev.c $OUTER_DEV_INDEX $INNER_DEV_INDEX"
 
 for arg in ${IPERF_ARGS[@]}
 do
