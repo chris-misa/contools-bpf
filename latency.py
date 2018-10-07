@@ -6,9 +6,9 @@ import sys
 import signal
 import time
 
-USAGE="latency.py <bpf program> <outer device index> <inner device index>"
+USAGE="latency.py <bpf program> <outer device index> <inner device index> [<ping pid>]"
 
-if len(sys.argv) != 4:
+if len(sys.argv) < 5:
     print(USAGE)
     sys.exit(1)
 
@@ -23,6 +23,7 @@ if prog is None:
 
 prog = prog.replace('OUTER_DEV_NAME', '"' + sys.argv[2] + '"')
 prog = prog.replace('INNER_DEV_NAME', '"' + sys.argv[3] + '"')
+prog = prog.replace('PING_PID', sys.argv[4])
 
 b = BPF(text=prog)
 
@@ -40,6 +41,7 @@ send_lat = 0
 def print_event(cpu, data, size):
     global in_flight, send_lat
     event = ct.cast(data, ct.POINTER(Latency)).contents
+    print("Got event: " + str(event.ns) + " ns, " + "dir: " + str(event.dir))
     if in_flight and event.dir == 2:
         sys.stdout.write("[%f] rtt raw_latency: %d, events_overhead: %d, end\n" \
                 % (time.time(), float(event.ns + send_lat) / 1000.0, 0))
