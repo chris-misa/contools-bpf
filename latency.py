@@ -41,7 +41,7 @@ send_lat = 0
 def print_event(cpu, data, size):
     global in_flight, send_lat
     event = ct.cast(data, ct.POINTER(Latency)).contents
-    print("Got event: " + str(event.ns) + " ns, " + "dir: " + str(event.dir))
+    # print("Got event: " + str(event.ns) + " ns, " + "dir: " + str(event.dir))
     if in_flight and event.dir == 2:
         sys.stdout.write("[%f] rtt raw_latency: %d, events_overhead: %d, end\n" \
                 % (time.time(), float(event.ns + send_lat) / 1000.0, 0))

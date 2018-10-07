@@ -22,20 +22,20 @@ PING_CONTAINER_NAME="ping-container"
 
 PAUSE_CMD="sleep 5"
 
-PING_PAUSE_CMD="sleep 1500"
-# PING_PAUSE_CMD="sleep 5"
+# PING_PAUSE_CMD="sleep 1500"
+PING_PAUSE_CMD="sleep 5"
 
 DATE_TAG=`date +%Y%m%d%H%M%S`
 META_DATA="Metadata"
 
 # declare -a IPERF_ARGS=("1M" "3M" "10M" "32M" "100M" "316M" "1G" "3G" "10G")
-declare -a IPERF_ARGS=("nop" "1M" "10M" "100M" "1G" "10G" "100G")
+# declare -a IPERF_ARGS=("nop" "1M" "10M" "100M" "1G" "10G" "100G")
 # declare -a IPERF_ARGS=("nop" "500K" "1M" "100M" "1G" "10G")
-# declare -a IPERF_ARGS=("1M")
+declare -a IPERF_ARGS=("1M")
 
 OLD_PWD=$(pwd) # used in the scripts referenced below to get at functions in this dir
 
-RUN1="${OLD_PWD}/run_trace.sh"
+RUN_TRACE="${OLD_PWD}/run_trace.sh"
 
 mkdir $DATE_TAG
 cd $DATE_TAG
@@ -56,8 +56,9 @@ echo $B Started $PING_CONTAINER_NAME $B
 $PAUSE_CMD
 
 #
-# Code to get net dev indexes
+# Set variables for run_trace.sh
 #
+BPF_PROG="${OLD_PWD}/syscalls.c"
 INNER_DEV_NAME="eth0" # Note that adding the '@' selects only the veth end
 OUTER_DEV_NAME="eno1d1"
 
@@ -71,12 +72,12 @@ OUTER_DEV_NAME="eno1d1"
 # 
 # echo Got outer dev index: $OUTER_DEV_INDEX, inner dev index: $INNER_DEV_INDEX
 
-echo $B Running inner dev strategy $B
+echo $B Running trace $B
 
-mkdir inner_dev
-cd inner_dev
-source $RUN1
-cd ..
+# mkdir inner_dev
+# cd inner_dev
+source $RUN_TRACE
+# cd ..
 
 docker stop $PING_CONTAINER_NAME
 docker rm $PING_CONTAINER_NAME

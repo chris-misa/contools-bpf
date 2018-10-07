@@ -3,7 +3,7 @@
 #
 # Test of inner dev plug in scheme
 #
-MONITOR_CMD="${OLD_PWD}/latency.py ${OLD_PWD}/inner_dev.c $OUTER_DEV_NAME $INNER_DEV_NAME"
+MONITOR_CMD="${OLD_PWD}/latency.py $BPF_PROG $OUTER_DEV_NAME $INNER_DEV_NAME"
 
 for arg in ${IPERF_ARGS[@]}
 do
@@ -69,12 +69,6 @@ do
   #
   echo $B Container / native monitored $B
   
-  $MONITOR_CMD > container_monitored_${TARGET_IPV4}_${arg}.latency &
-  MONITOR_PID=$!
-  echo "  monitor running with pid: ${MONITOR_PID}"
-  
-  $PAUSE_CMD
-  
   docker exec $PING_CONTAINER_NAME \
     $CONTAINER_PING_CMD $PING_ARGS $TARGET_IPV4 \
     > container_monitored_${TARGET_IPV4}_${arg}.ping &
@@ -85,6 +79,12 @@ do
   PING_PID=`ps -e | grep ping | sed -E 's/ *([0-9]+) .*/\1/'`
   echo "  got container ping pid $PING_PID"
 
+  $MONITOR_CMD $PING_PID > container_monitored_${TARGET_IPV4}_${arg}.latency &
+  MONITOR_PID=$!
+  echo "  monitor running with pid: ${MONITOR_PID}"
+  
+  $PAUSE_CMD
+  
 
   # Run ping in background
   $NATIVE_PING_CMD $PING_ARGS $TARGET_IPV4 \
